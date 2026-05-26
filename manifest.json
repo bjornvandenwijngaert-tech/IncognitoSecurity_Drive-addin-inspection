@@ -1,0 +1,15 @@
+{
+    "name": "Vehicle Condition Check",
+    "supportEmail": "support@geotab.com",
+    "version": "1.0.0",
+    "items": [{
+        "url": "index.html",
+        "path": "DriveAppLink/",
+        "menuName": {
+            "en": "Vehicle Condition Check"
+        },
+        "icon": "icon.svg"
+    }],
+    "onStartup": true,
+    "onShutdown": true
+}

@@ -1,0 +1,13 @@
+{
+    "name": "Vehicle Condition Reports",
+    "supportEmail": "support@geotab.com",
+    "version": "1.0.0",
+    "items": [{
+        "url": "report.html",
+        "path": "vehicleConditionReports/",
+        "menuName": {
+            "en": "Vehicle Condition Reports"
+        },
+        "icon": "icon.svg"
+    }]
+}
