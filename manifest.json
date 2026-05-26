@@ -3,12 +3,12 @@
     "supportEmail": "support@geotab.com",
     "version": "1.0.0",
     "items": [{
-        "url": "index.html",
+        "url": "https://bjornvandenwijngaert-tech.github.io/drive-addin-inspection/index.html",
         "path": "DriveAppLink/",
         "menuName": {
             "en": "Vehicle Condition Check"
         },
-        "icon": "icon.svg"
+        "icon": "https://bjornvandenwijngaert-tech.github.io/drive-addin-inspection/icon.svg"
     }],
     "onStartup": true,
     "onShutdown": true

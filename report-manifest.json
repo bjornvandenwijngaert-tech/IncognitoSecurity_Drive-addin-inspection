@@ -3,11 +3,11 @@
     "supportEmail": "support@geotab.com",
     "version": "1.0.0",
     "items": [{
-        "url": "report.html",
+        "url": "https://bjornvandenwijngaert-tech.github.io/drive-addin-inspection/report.html",
         "path": "vehicleConditionReports/",
         "menuName": {
             "en": "Vehicle Condition Reports"
         },
-        "icon": "icon.svg"
+        "icon": "https://bjornvandenwijngaert-tech.github.io/drive-addin-inspection/icon.svg"
     }]
 }
