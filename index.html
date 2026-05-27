@@ -519,7 +519,7 @@ function hideStatus() {
 }
 
 // ─── Browser preview fallback ─────────────────────────────────────────────────
-if (typeof window !== 'undefined' && !window.geotabDriveLoaded) {
+if (window.self === window.top) {
     init(null, null);
 }
 

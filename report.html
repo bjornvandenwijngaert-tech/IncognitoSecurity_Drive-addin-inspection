@@ -422,7 +422,7 @@ var geotab = {
                     _api = api;
                     loadData();
                 },
-                blur: function () {}
+                blur: function () { closeModalDirect(); }
             };
         }
     }
@@ -752,7 +752,7 @@ function getSampleData() {
 }
 
 // ─── Browser preview fallback ─────────────────────────────────────────────────
-if (typeof window !== 'undefined' && !window.geotabAddinLoaded) {
+if (window.self === window.top) {
     setDefaultDates();
     loadData();
 }
