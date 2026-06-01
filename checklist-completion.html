@@ -194,7 +194,7 @@ function loadDriveData(callback) {
     search: { addInId: ADDIN_ID }
   }, function(results) {
     var templates = results
-      .map(function(r) { try { return JSON.parse(r.details); } catch(e) { return null; } })
+      .map(function(r) { return r.details || null; })
       .filter(function(d) { return d && d.type === 'ChecklistTemplate'; });
 
     var id = DRIVER.id;
@@ -433,7 +433,7 @@ function submitChecklist() {
   if (_api) {
     _api.call('Add', {
       typeName: 'AddInData',
-      entity: { addInId: ADDIN_ID, details: JSON.stringify(response) }
+      entity: { addInId: ADDIN_ID, details: response }
     }, function(id) {
       console.log('Checklist response saved:', id);
     }, function(err) {

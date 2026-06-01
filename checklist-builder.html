@@ -257,8 +257,8 @@ function loadFromApi() {
     const loaded = results
       .map(function(r) {
         try {
-          const d = JSON.parse(r.details);
-          if (d.type === 'ChecklistTemplate') {
+          const d = r.details;
+          if (d && d.type === 'ChecklistTemplate') {
             d.addInDataId = r.id;
             return d;
           }
@@ -625,12 +625,12 @@ function saveChecklist() {
 
   if (!_api) { toast('Saved locally (MyGeotab not connected)'); return; }
 
-  const payload = JSON.stringify({
+  const payload = {
     type: 'ChecklistTemplate',
     id: t.id, name: t.name, assignTo: t.assignTo,
     assigned: t.assigned, requirePhotos: t.requirePhotos,
     items: t.items, updatedAt: new Date().toISOString()
-  });
+  };
 
   function onSaveErr(err) {
     const msg = err && (err.message || (typeof err === 'string' ? err : JSON.stringify(err)));

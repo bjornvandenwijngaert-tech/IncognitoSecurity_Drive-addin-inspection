@@ -150,7 +150,7 @@ function loadData() {
     search: { addInId: ADDIN_ID }
   }, function(results) {
     RESPONSES = results
-      .map(function(r) { try { return JSON.parse(r.details); } catch(e) { return null; } })
+      .map(function(r) { return r.details || null; })
       .filter(function(d) { return d && d.type === 'ChecklistResponse'; })
       .sort(function(a, b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
     buildFilterOptions();
