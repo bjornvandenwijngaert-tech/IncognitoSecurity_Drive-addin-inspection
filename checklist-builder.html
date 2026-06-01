@@ -206,65 +206,13 @@ const PRESET_CATEGORIES = [
 
 const TYPE_LABEL = { pass_fail:'Pass/Fail', yes_no:'Yes/No', number:'Number', text:'Text' };
 
-// ── Data — starts as mock, overwritten if MyGeotab API is available ───────────
-let DRIVERS = [
-  { id:'drv-1', name:'James Whitfield' },
-  { id:'drv-2', name:'Sarah Okonkwo' },
-  { id:'drv-3', name:'Mark Patel' },
-  { id:'drv-4', name:'Emma Thornton' },
-  { id:'drv-5', name:'David Nguyen' },
-];
-let VEHICLES = [
-  { id:'dev-1', name:'Van 01 · LK22 XBC' },
-  { id:'dev-2', name:'Van 02 · YH71 TDF' },
-  { id:'dev-3', name:'Truck 01 · PG70 AWV' },
-  { id:'dev-4', name:'Truck 02 · RE19 MKL' },
-  { id:'dev-5', name:'Car 01 · SB23 HJN' },
-];
-
-let templates = [
-  {
-    id:'cl-001', name:'Pre-Trip Vehicle Inspection',
-    assignTo:'driver', assigned:['drv-1','drv-2','drv-3'], requirePhotos:true,
-    items:[
-      { id:'i1', label:'Tyres — pressure and condition', type:'pass_fail' },
-      { id:'i2', label:'Lights — front, rear and indicators', type:'pass_fail' },
-      { id:'i3', label:'Windscreen — no cracks or chips', type:'pass_fail' },
-      { id:'i4', label:'Mirrors — clean and adjusted', type:'pass_fail' },
-      { id:'i5', label:'Fluid levels — oil, coolant, washer', type:'pass_fail' },
-      { id:'i6', label:'Brakes — firm pedal feel', type:'pass_fail' },
-      { id:'i7', label:'Starting mileage', type:'number' },
-      { id:'i8', label:'Additional notes', type:'text' },
-    ]
-  },
-  {
-    id:'cl-002', name:'Post-Trip Damage Report',
-    assignTo:'driver', assigned:['drv-1','drv-4'], requirePhotos:true,
-    items:[
-      { id:'i1', label:'New damage to bodywork?', type:'yes_no' },
-      { id:'i2', label:'Interior clean and clear of rubbish?', type:'yes_no' },
-      { id:'i3', label:'Fuel level on return', type:'number' },
-      { id:'i4', label:'Incident or near-miss during shift?', type:'yes_no' },
-      { id:'i5', label:'Incident description (if applicable)', type:'text' },
-    ]
-  },
-  {
-    id:'cl-003', name:'Monthly Deep Inspection',
-    assignTo:'asset', assigned:['dev-1','dev-2','dev-3'], requirePhotos:true,
-    items:[
-      { id:'i1', label:'Brake pad thickness (mm)', type:'number' },
-      { id:'i2', label:'Tyre tread depth (mm)', type:'number' },
-      { id:'i3', label:'Suspension — no unusual noise or play', type:'pass_fail' },
-      { id:'i4', label:'Battery health satisfactory', type:'pass_fail' },
-      { id:'i5', label:'Next service date confirmed', type:'yes_no' },
-    ]
-  },
-];
-
-let activeId = templates[0].id;
+let DRIVERS  = [];
+let VEHICLES = [];
+let templates = [];
+let activeId  = null;
 let assignType = 'driver';
-let selected = new Set(templates[0].assigned);
-let selectedPresets = new Set(); // tracks ticked items in the modal
+let selected   = new Set();
+let selectedPresets = new Map();
 
 var _api = null;
 
@@ -354,6 +302,11 @@ function getActive() { return templates.find(t => t.id === activeId); }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function renderSidebar() {
+  if (templates.length === 0) {
+    document.getElementById('sidebar').innerHTML =
+      '<p class="text-xs text-slate-400 px-3 py-6 text-center leading-relaxed">No checklists yet.<br>Click <strong>+ New Checklist</strong> to create one.</p>';
+    return;
+  }
   document.getElementById('sidebar').innerHTML = templates.map(t => {
     const isActive = t.id === activeId;
     return `
@@ -367,8 +320,10 @@ function renderSidebar() {
 }
 
 function selectTemplate(id) {
+  if (!id) return;
   activeId = id;
   const t = getActive();
+  if (!t) return;
   document.getElementById('clName').value = t.name;
   assignType = t.assignTo;
   selected = new Set(t.assigned);
@@ -395,11 +350,12 @@ function updateAssignButtons() {
     { id: 'btn-asset',  active: assignType === 'asset'  }
   ].forEach(({ id, active }) => {
     const btn = document.getElementById(id);
-    btn.style.borderColor  = active ? '#0047BB' : '#e2e8f0';
-    btn.style.background   = active ? '#eff6ff' : 'white';
+    btn.style.border      = active ? '2px solid #0047BB' : '2px solid #e2e8f0';
+    btn.style.borderRadius = '12px';
+    btn.style.background  = active ? '#eff6ff' : 'white';
     const svg = btn.querySelector('svg');
     const ps  = btn.querySelectorAll('p');
-    if (svg)  svg.style.color  = active ? '#0047BB' : '#94a3b8';
+    if (svg)   svg.style.color  = active ? '#0047BB' : '#94a3b8';
     if (ps[0]) ps[0].style.color = active ? '#1e40af' : '#374151';
     if (ps[1]) ps[1].style.color = active ? '#3b82f6' : '#94a3b8';
   });
@@ -472,8 +428,6 @@ function closeModalOnBg(e) {
   if (e.target === document.getElementById('addItemModal')) closeAddItemModal();
 }
 
-selectedPresets = new Map();
-
 function togglePreset(label, type) {
   if (selectedPresets.has(label)) {
     selectedPresets.delete(label);
@@ -516,6 +470,7 @@ function renderPresetList() {
 
 function addSelectedItems() {
   const t = getActive();
+  if (!t) return;
   let added = 0;
 
   // Add selected presets
@@ -608,8 +563,7 @@ function toast(msg) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-renderSidebar();
-selectTemplate(activeId);
+renderSidebar(); // renders empty state until MyGeotab calls initialize()
 </script>
 </body>
 </html>
