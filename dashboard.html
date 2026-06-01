@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vehicle Check-In Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; }
+  .geotab-header { background: #0047BB; }
+  .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+  .badge-pass { background:#dcfce7; color:#15803d; }
+  .badge-fail { background:#fee2e2; color:#dc2626; }
+  .row-expanded { background:#f8fafc; }
+  .item-pass { color:#16a34a; }
+  .item-fail { color:#dc2626; }
+  .item-na   { color:#94a3b8; }
+  .photo-thumb { width:80px; height:60px; object-fit:cover; border-radius:8px; cursor:pointer; transition:transform .15s; }
+  .photo-thumb:hover { transform:scale(1.05); }
+  #lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; }
+  #lightbox.open { display:flex; }
+  #lightboxImg { max-width:90vw; max-height:90vh; border-radius:12px; }
+  tr.clickable { cursor:pointer; }
+  tr.clickable:hover td { background:#f1f5f9; }
+  .trend-up { color:#16a34a; }
+  .trend-dn { color:#dc2626; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- Header -->
+<header class="geotab-header text-white px-6 py-3 flex items-center gap-3 shadow-lg">
+  <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+  <span class="font-semibold text-base">Check-In Dashboard</span>
+  <span class="text-blue-300 text-xs bg-blue-900/40 px-2 py-0.5 rounded ml-1">demo_UK_smb_onboarding</span>
+  <nav class="ml-auto flex gap-1">
+    <a href="checklist-builder.html" class="text-blue-200 hover:bg-white/10 px-3 py-1.5 rounded text-sm transition-colors">Builder</a>
+    <a href="checklist-completion.html" class="text-blue-200 hover:bg-white/10 px-3 py-1.5 rounded text-sm transition-colors">Driver View</a>
+  </nav>
+</header>
+
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-5">
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-4 gap-4">
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Total Submissions</p>
+      <p class="kpi-value text-slate-800">24</p>
+      <p class="text-xs text-slate-400 mt-2">Last 7 days</p>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Pass Rate</p>
+      <p class="kpi-value text-green-600">79%</p>
+      <p class="text-xs trend-up mt-2">↑ 4% vs last week</p>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Issues Flagged</p>
+      <p class="kpi-value text-red-500">12</p>
+      <p class="text-xs trend-dn mt-2">↑ 2 vs last week</p>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Photos Captured</p>
+      <p class="kpi-value text-blue-600">67</p>
+      <p class="text-xs text-slate-400 mt-2">Avg 2.8 per check</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-2xl px-5 py-4 shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center">
+    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest mr-2">Filter</p>
+    <select id="fDate" onchange="applyFilters()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 text-slate-600 bg-white">
+      <option value="">All dates</option>
+      <option value="today">Today</option>
+      <option value="week" selected>Last 7 days</option>
+      <option value="month">Last 30 days</option>
+    </select>
+    <select id="fVehicle" onchange="applyFilters()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 text-slate-600 bg-white">
+      <option value="">All vehicles</option>
+      <option>Van 01 · LK22 XBC</option>
+      <option>Van 02 · YH71 TDF</option>
+      <option>Truck 01 · PG70 AWV</option>
+      <option>Truck 02 · RE19 MKL</option>
+      <option>Car 01 · SB23 HJN</option>
+    </select>
+    <select id="fDriver" onchange="applyFilters()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 text-slate-600 bg-white">
+      <option value="">All drivers</option>
+      <option>James Whitfield</option>
+      <option>Sarah Okonkwo</option>
+      <option>Mark Patel</option>
+      <option>Emma Thornton</option>
+      <option>David Nguyen</option>
+    </select>
+    <select id="fStatus" onchange="applyFilters()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 text-slate-600 bg-white">
+      <option value="">All statuses</option>
+      <option value="pass">Pass only</option>
+      <option value="fail">Fail only</option>
+    </select>
+    <button onclick="clearFilters()" class="ml-auto text-xs text-slate-400 hover:text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors">Clear</button>
+    <span id="filterCount" class="text-xs text-slate-400"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-slate-100 bg-slate-50">
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Date &amp; Time</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Driver</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Vehicle</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Checklist</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Issues</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Photos</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div id="emptyRow" class="hidden py-16 text-center text-slate-400 text-sm">No submissions match your filters.</div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script>
+// ── Mock submissions ──────────────────────────────────────────────────────────
+// In production: fetched from api.call("Get", { typeName:"AddInData", search:{ addInId:ADDIN_ID } })
+// then filter by details.type === "ChecklistResponse"
+
+const ADDIN_ID = 'aVehicleChecklistAddin000001';
+
+// Generate realistic mock photo placeholder (coloured svg data URL)
+function mockPhoto(hue) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="hsl(${hue},40%,75%)"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="28" fill="hsl(${hue},40%,35%)">📷</text></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+const RESPONSES = [
+  {
+    id:'r1', templateName:'Pre-Trip Vehicle Inspection',
+    driverName:'James Whitfield', deviceName:'Van 01 · LK22 XBC',
+    submittedAt:'2026-06-01T07:32:00Z', overallStatus:'pass', flaggedCount:0, photoCount:3,
+    photos:[mockPhoto(200),mockPhoto(220),mockPhoto(210)],
+    items:[
+      {label:'Tyres — pressure and condition',value:'pass',note:''},
+      {label:'Lights — front, rear and indicators',value:'pass',note:''},
+      {label:'Windscreen — no cracks or chips',value:'pass',note:''},
+      {label:'Mirrors — clean and adjusted',value:'pass',note:''},
+      {label:'Fluid levels — oil, coolant, washer',value:'pass',note:''},
+      {label:'Brakes — firm pedal feel',value:'pass',note:''},
+      {label:'Starting mileage (km)',value:'47382',note:''},
+      {label:'Additional notes',value:'All clear, good to go',note:''},
+    ]
+  },
+  {
+    id:'r2', templateName:'Pre-Trip Vehicle Inspection',
+    driverName:'Sarah Okonkwo', deviceName:'Van 02 · YH71 TDF',
+    submittedAt:'2026-06-01T07:51:00Z', overallStatus:'fail', flaggedCount:2, photoCount:2,
+    photos:[mockPhoto(0),mockPhoto(15)],
+    items:[
+      {label:'Tyres — pressure and condition',value:'fail',note:'Rear nearside low — needs air'},
+      {label:'Lights — front, rear and indicators',value:'pass',note:''},
+      {label:'Windscreen — no cracks or chips',value:'fail',note:'Small chip on passenger side'},
+      {label:'Mirrors — clean and adjusted',value:'pass',note:''},
+      {label:'Fluid levels — oil, coolant, washer',value:'pass',note:''},
+      {label:'Brakes — firm pedal feel',value:'pass',note:''},
+      {label:'Starting mileage (km)',value:'61204',note:''},
+      {label:'Additional notes',value:'Reported to depot manager',note:''},
+    ]
+  },
+  {
+    id:'r3', templateName:'Post-Trip Damage Report',
+    driverName:'James Whitfield', deviceName:'Van 01 · LK22 XBC',
+    submittedAt:'2026-05-31T17:22:00Z', overallStatus:'pass', flaggedCount:0, photoCount:2,
+    photos:[mockPhoto(150),mockPhoto(160)],
+    items:[
+      {label:'New damage to bodywork?',value:'no',note:''},
+      {label:'Interior clean and clear of rubbish?',value:'yes',note:''},
+      {label:'Fuel level on return',value:'68',note:''},
+      {label:'Incident or near-miss during shift?',value:'no',note:''},
+      {label:'Incident description (if applicable)',value:'N/A',note:''},
+    ]
+  },
+  {
+    id:'r4', templateName:'Pre-Trip Vehicle Inspection',
+    driverName:'Mark Patel', deviceName:'Truck 01 · PG70 AWV',
+    submittedAt:'2026-05-31T06:45:00Z', overallStatus:'fail', flaggedCount:1, photoCount:3,
+    photos:[mockPhoto(30),mockPhoto(45),mockPhoto(20)],
+    items:[
+      {label:'Tyres — pressure and condition',value:'pass',note:''},
+      {label:'Lights — front, rear and indicators',value:'fail',note:'Offside rear indicator not working'},
+      {label:'Windscreen — no cracks or chips',value:'pass',note:''},
+      {label:'Mirrors — clean and adjusted',value:'pass',note:''},
+      {label:'Fluid levels — oil, coolant, washer',value:'pass',note:''},
+      {label:'Brakes — firm pedal feel',value:'pass',note:''},
+      {label:'Starting mileage (km)',value:'112034',note:''},
+      {label:'Additional notes',value:'Raised with maintenance team',note:''},
+    ]
+  },
+  {
+    id:'r5', templateName:'Pre-Trip Vehicle Inspection',
+    driverName:'Emma Thornton', deviceName:'Car 01 · SB23 HJN',
+    submittedAt:'2026-05-30T08:10:00Z', overallStatus:'pass', flaggedCount:0, photoCount:2,
+    photos:[mockPhoto(260),mockPhoto(280)],
+    items:[
+      {label:'Tyres — pressure and condition',value:'pass',note:''},
+      {label:'Lights — front, rear and indicators',value:'pass',note:''},
+      {label:'Windscreen — no cracks or chips',value:'pass',note:''},
+      {label:'Mirrors — clean and adjusted',value:'pass',note:''},
+      {label:'Fluid levels — oil, coolant, washer',value:'pass',note:''},
+      {label:'Brakes — firm pedal feel',value:'pass',note:''},
+      {label:'Starting mileage (km)',value:'24891',note:''},
+      {label:'Additional notes',value:'',note:''},
+    ]
+  },
+  {
+    id:'r6', templateName:'Monthly Deep Inspection',
+    driverName:'David Nguyen', deviceName:'Truck 02 · RE19 MKL',
+    submittedAt:'2026-05-28T09:30:00Z', overallStatus:'pass', flaggedCount:0, photoCount:4,
+    photos:[mockPhoto(300),mockPhoto(310),mockPhoto(290),mockPhoto(320)],
+    items:[
+      {label:'Brake pad thickness (mm)',value:'6.5',note:''},
+      {label:'Tyre tread depth (mm)',value:'4.2',note:''},
+      {label:'Suspension — no unusual noise or play',value:'pass',note:''},
+      {label:'Battery health satisfactory',value:'pass',note:''},
+      {label:'Next service date confirmed',value:'yes',note:'Booked for 12 Jun'},
+    ]
+  },
+];
+
+let filtered = [...RESPONSES];
+let expandedId = null;
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const fD = document.getElementById('fDate').value;
+  const fV = document.getElementById('fVehicle').value;
+  const fDr = document.getElementById('fDriver').value;
+  const fS = document.getElementById('fStatus').value;
+  const now = new Date();
+
+  filtered = RESPONSES.filter(r => {
+    const dt = new Date(r.submittedAt);
+    if (fD === 'today'  && (now - dt) > 86400000) return false;
+    if (fD === 'week'   && (now - dt) > 7*86400000) return false;
+    if (fD === 'month'  && (now - dt) > 30*86400000) return false;
+    if (fV  && r.deviceName !== fV) return false;
+    if (fDr && r.driverName !== fDr) return false;
+    if (fS  && r.overallStatus !== fS) return false;
+    return true;
+  });
+  expandedId = null;
+  renderTable();
+}
+
+function clearFilters() {
+  ['fDate','fVehicle','fDriver','fStatus'].forEach(id => document.getElementById(id).value = '');
+  applyFilters();
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('filterCount').textContent = `${filtered.length} of ${RESPONSES.length} results`;
+  document.getElementById('emptyRow').classList.toggle('hidden', filtered.length > 0);
+
+  tbody.innerHTML = filtered.map(r => {
+    const dt = new Date(r.submittedAt);
+    const dateStr = dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+    const timeStr = dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const isExp = expandedId === r.id;
+
+    return `
+      <tr class="clickable border-b border-slate-100 ${isExp ? 'row-expanded' : ''}" onclick="toggleRow('${r.id}')">
+        <td class="px-5 py-3.5">
+          <p class="text-slate-700 font-medium">${dateStr}</p>
+          <p class="text-xs text-slate-400">${timeStr}</p>
+        </td>
+        <td class="px-5 py-3.5 text-slate-700">${r.driverName}</td>
+        <td class="px-5 py-3.5 text-slate-600 text-sm">${r.deviceName}</td>
+        <td class="px-5 py-3.5 text-slate-600 text-sm">${r.templateName}</td>
+        <td class="px-5 py-3.5">
+          <span class="badge-${r.overallStatus} text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide">${r.overallStatus}</span>
+        </td>
+        <td class="px-5 py-3.5">
+          ${r.flaggedCount > 0
+            ? `<span class="text-red-600 font-semibold text-sm">${r.flaggedCount} issue${r.flaggedCount>1?'s':''}</span>`
+            : `<span class="text-slate-300 text-sm">—</span>`}
+        </td>
+        <td class="px-5 py-3.5 text-slate-500 text-sm">${r.photoCount} 📷</td>
+        <td class="px-4 py-3.5 text-slate-300">
+          <svg class="w-4 h-4 transition-transform ${isExp ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </td>
+      </tr>
+      ${isExp ? expandedRow(r) : ''}
+    `;
+  }).join('');
+}
+
+function expandedRow(r) {
+  const itemsHtml = r.items.map(item => {
+    const isFail = item.value === 'fail' || item.value === 'no';
+    const isPass = item.value === 'pass' || item.value === 'yes';
+    const colorClass = isFail ? 'item-fail' : isPass ? 'item-pass' : 'item-na';
+    const icon = isFail ? '✕' : isPass ? '✓' : '—';
+    const displayVal = item.value || '—';
+    return `
+      <div class="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
+        <span class="${colorClass} font-bold text-sm w-4 shrink-0 mt-0.5">${icon}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-slate-700">${item.label}</p>
+          ${item.note ? `<p class="text-xs text-slate-400 mt-0.5 italic">${item.note}</p>` : ''}
+        </div>
+        <span class="text-xs text-slate-500 shrink-0 ${colorClass}">${displayVal}</span>
+      </div>
+    `;
+  }).join('');
+
+  const photosHtml = r.photos.length > 0
+    ? r.photos.map((src, i) => `<img class="photo-thumb" src="${src}" alt="Photo ${i+1}" onclick="openLightbox(event,'${r.id}',${i})">`).join('')
+    : '<p class="text-xs text-slate-400">No photos</p>';
+
+  return `
+    <tr class="row-expanded">
+      <td colspan="8" class="px-5 py-5">
+        <div class="grid grid-cols-3 gap-6">
+          <div class="col-span-2">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Checklist Responses</p>
+            <div class="bg-white rounded-xl border border-slate-200 px-4 py-2">${itemsHtml}</div>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Photos (${r.photos.length})</p>
+            <div class="flex flex-wrap gap-2">${photosHtml}</div>
+            <div class="mt-5 bg-slate-50 rounded-xl border border-slate-200 p-3">
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">AddInData record</p>
+              <p class="text-xs font-mono text-slate-500 leading-relaxed">type: ChecklistResponse<br>id: ${r.id}<br>driver: ${r.driverName}<br>vehicle: ${r.deviceName}<br>submitted: ${new Date(r.submittedAt).toLocaleString('en-GB')}</p>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function toggleRow(id) {
+  expandedId = expandedId === id ? null : id;
+  renderTable();
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function openLightbox(e, rId, photoIdx) {
+  e.stopPropagation();
+  const r = RESPONSES.find(x => x.id === rId);
+  document.getElementById('lightboxImg').src = r.photos[photoIdx];
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+/*
+ * REAL MyGeotab Add-In — load all responses:
+ *
+ * api.call("Get", {
+ *   typeName: "AddInData",
+ *   search: { addInId: ADDIN_ID }
+ * }, function(results) {
+ *   const responses = results
+ *     .map(r => JSON.parse(r.details))
+ *     .filter(d => d.type === "ChecklistResponse");
+ *   // then render table with real data
+ * }, console.error);
+ */
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+applyFilters();
+</script>
+</body>
+</html>

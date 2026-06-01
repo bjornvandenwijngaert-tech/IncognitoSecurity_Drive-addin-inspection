@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist Builder · Vehicle Check-In Add-In</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; }
+  .geotab-header { background: #0047BB; }
+  .toggle { position:relative; width:44px; height:24px; display:inline-block; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; cursor:pointer; inset:0; background:#cbd5e1; border-radius:24px; transition:.25s; }
+  .slider:before { content:''; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:white; border-radius:50%; transition:.25s; }
+  input:checked+.slider { background:#0047BB; }
+  input:checked+.slider:before { transform:translateX(20px); }
+  .sidebar-item.active { background:#eff6ff; border-color:#93c5fd; }
+  .code { background:#0f172a; color:#e2e8f0; font-family:'Cascadia Code','Courier New',monospace; font-size:11.5px; line-height:1.7; }
+  .c-cmt { color:#64748b; }
+  .c-key { color:#7dd3fc; }
+  .c-str { color:#86efac; }
+  .c-num { color:#fda4af; }
+  #toast { transition: all .3s; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+<!-- Header -->
+<header class="geotab-header text-white px-5 py-3 flex items-center gap-3 shadow-lg z-10">
+  <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+  <span class="font-semibold text-base">Vehicle Check-In Builder</span>
+  <span class="text-blue-300 text-xs bg-blue-900/40 px-2 py-0.5 rounded ml-1">demo_UK_smb_onboarding</span>
+  <nav class="ml-auto flex gap-1">
+    <a href="dashboard.html" class="text-blue-200 hover:bg-white/10 px-3 py-1.5 rounded text-sm transition-colors">Dashboard</a>
+    <a href="checklist-completion.html" class="text-blue-200 hover:bg-white/10 px-3 py-1.5 rounded text-sm transition-colors">Driver View</a>
+  </nav>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <!-- Sidebar -->
+  <aside class="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0">
+    <div class="p-3 border-b border-slate-100">
+      <button onclick="newChecklist()" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        New Checklist
+      </button>
+    </div>
+    <div id="sidebar" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+    <div class="p-3 bg-blue-50 border-t border-blue-100 text-xs text-blue-700 leading-relaxed">
+      All templates stored as <strong>AddInData</strong> inside MyGeotab — no external database needed.
+    </div>
+  </aside>
+
+  <!-- Editor -->
+  <main class="flex-1 overflow-y-auto p-6 space-y-5">
+    <div class="flex items-start justify-between gap-4">
+      <input id="clName" type="text" placeholder="Checklist name…"
+        class="text-2xl font-bold text-slate-800 bg-transparent border-b-2 border-transparent focus:border-blue-500 focus:outline-none flex-1 pb-0.5 placeholder:text-slate-300"
+        oninput="onNameInput()">
+      <div class="flex gap-2 pt-1">
+        <button onclick="deleteChecklist()" class="text-sm text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">Delete</button>
+        <button onclick="saveChecklist()" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-medium transition-colors">Save</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <!-- Assign To -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Assign Checklist To</p>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="cursor-pointer">
+            <input type="radio" name="assignTo" value="driver" class="sr-only peer" checked onchange="setAssignType('driver')">
+            <div class="border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-xl p-3 text-center transition-all">
+              <svg class="w-6 h-6 mx-auto mb-1 text-slate-400 peer-checked:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              <p class="text-sm font-medium text-slate-700">Driver</p>
+              <p class="text-xs text-slate-400 mt-0.5">Shown when driver logs in</p>
+            </div>
+          </label>
+          <label class="cursor-pointer">
+            <input type="radio" name="assignTo" value="asset" class="sr-only peer" onchange="setAssignType('asset')">
+            <div class="border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-xl p-3 text-center transition-all">
+              <svg class="w-6 h-6 mx-auto mb-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7h8M8 11h4m1 4l2-2 2 2M3 3h18v4l-2 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9L3 7V3z"/></svg>
+              <p class="text-sm font-medium text-slate-700">Vehicle</p>
+              <p class="text-xs text-slate-400 mt-0.5">Shown when vehicle is used</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Assignment targets -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <p id="assignLabel" class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Select Drivers</p>
+        <div id="assignList" class="space-y-1 max-h-44 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+      <div>
+        <p class="text-sm font-semibold text-slate-700">Require end-of-check photos</p>
+        <p class="text-xs text-slate-400 mt-0.5">Driver must capture ≥ 1 vehicle photo before submitting</p>
+      </div>
+      <label class="toggle ml-4">
+        <input type="checkbox" id="reqPhotos" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Items -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Checklist Items</p>
+        <span id="itemCount" class="text-xs text-slate-400"></span>
+      </div>
+      <div id="itemsList" class="space-y-2 mb-3"></div>
+      <button onclick="addItem()" class="w-full border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Add Item
+      </button>
+    </div>
+
+    <!-- AddInData preview -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">AddInData API — what gets saved</p>
+        <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-mono">ChecklistTemplate</span>
+      </div>
+      <pre id="apiPreview" class="code rounded-xl p-4 overflow-x-auto"></pre>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl opacity-0 translate-y-4 pointer-events-none">
+  Saved successfully
+</div>
+
+<script>
+const ADDIN_ID = 'aVehicleChecklistAddin000001'; // replace with real GUID in add-in
+
+const DRIVERS = [
+  { id: 'drv-1', name: 'James Whitfield' },
+  { id: 'drv-2', name: 'Sarah Okonkwo' },
+  { id: 'drv-3', name: 'Mark Patel' },
+  { id: 'drv-4', name: 'Emma Thornton' },
+  { id: 'drv-5', name: 'David Nguyen' },
+];
+const VEHICLES = [
+  { id: 'dev-1', name: 'Van 01 · LK22 XBC' },
+  { id: 'dev-2', name: 'Van 02 · YH71 TDF' },
+  { id: 'dev-3', name: 'Truck 01 · PG70 AWV' },
+  { id: 'dev-4', name: 'Truck 02 · RE19 MKL' },
+  { id: 'dev-5', name: 'Car 01 · SB23 HJN' },
+];
+const ITEM_TYPES = { pass_fail: 'Pass / Fail', yes_no: 'Yes / No', text: 'Text', number: 'Number' };
+
+let templates = [
+  {
+    id: 'cl-001', name: 'Pre-Trip Vehicle Inspection',
+    assignTo: 'driver', assigned: ['drv-1','drv-2','drv-3'], requirePhotos: true,
+    items: [
+      { id:'i1', label:'Tyres — pressure and condition', type:'pass_fail' },
+      { id:'i2', label:'Lights — front, rear and indicators', type:'pass_fail' },
+      { id:'i3', label:'Windscreen — no cracks or chips', type:'pass_fail' },
+      { id:'i4', label:'Mirrors — clean and adjusted', type:'pass_fail' },
+      { id:'i5', label:'Fluid levels — oil, coolant, washer', type:'pass_fail' },
+      { id:'i6', label:'Brakes — firm pedal feel', type:'pass_fail' },
+      { id:'i7', label:'Starting mileage', type:'number' },
+      { id:'i8', label:'Additional notes', type:'text' },
+    ]
+  },
+  {
+    id: 'cl-002', name: 'Post-Trip Damage Report',
+    assignTo: 'driver', assigned: ['drv-1','drv-4'], requirePhotos: true,
+    items: [
+      { id:'i1', label:'New damage to bodywork?', type:'yes_no' },
+      { id:'i2', label:'Interior clean and clear of rubbish?', type:'yes_no' },
+      { id:'i3', label:'Fuel level on return', type:'number' },
+      { id:'i4', label:'Incident or near-miss during shift?', type:'yes_no' },
+      { id:'i5', label:'Incident description (if applicable)', type:'text' },
+    ]
+  },
+  {
+    id: 'cl-003', name: 'Monthly Deep Inspection',
+    assignTo: 'asset', assigned: ['dev-1','dev-2','dev-3'], requirePhotos: true,
+    items: [
+      { id:'i1', label:'Brake pad thickness (mm)', type:'number' },
+      { id:'i2', label:'Tyre tread depth (mm)', type:'number' },
+      { id:'i3', label:'Suspension — no unusual noise or play', type:'pass_fail' },
+      { id:'i4', label:'Battery health satisfactory', type:'pass_fail' },
+      { id:'i5', label:'Next service date confirmed', type:'yes_no' },
+    ]
+  },
+];
+
+let activeId = templates[0].id;
+let assignType = 'driver';
+let selected = new Set(templates[0].assigned);
+
+function getActive() { return templates.find(t => t.id === activeId); }
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  document.getElementById('sidebar').innerHTML = templates.map(t => `
+    <div class="sidebar-item border rounded-xl px-3 py-2.5 cursor-pointer transition-colors ${t.id === activeId ? 'active border-blue-200' : 'border-transparent hover:bg-slate-50'}"
+         onclick="selectTemplate('${t.id}')">
+      <p class="text-sm font-medium text-slate-800 truncate">${t.name}</p>
+      <p class="text-xs text-slate-400 mt-0.5">${t.items.length} items · ${t.assignTo === 'driver' ? 'By driver' : 'By vehicle'}</p>
+    </div>
+  `).join('');
+}
+
+function selectTemplate(id) {
+  activeId = id;
+  const t = getActive();
+  document.getElementById('clName').value = t.name;
+  assignType = t.assignTo;
+  selected = new Set(t.assigned);
+  document.querySelector(`input[name="assignTo"][value="${t.assignTo}"]`).checked = true;
+  document.getElementById('reqPhotos').checked = t.requirePhotos;
+  renderAssignList();
+  renderItems();
+  renderApiPreview();
+  renderSidebar();
+}
+
+// ── Assign type & list ───────────────────────────────────────────────────────
+function setAssignType(type) {
+  assignType = type;
+  selected = new Set();
+  renderAssignList();
+  renderApiPreview();
+}
+
+function renderAssignList() {
+  const pool = assignType === 'driver' ? DRIVERS : VEHICLES;
+  document.getElementById('assignLabel').textContent = assignType === 'driver' ? 'Select Drivers' : 'Select Vehicles';
+  document.getElementById('assignList').innerHTML = pool.map(p => `
+    <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+      <input type="checkbox" value="${p.id}" class="w-4 h-4 rounded text-blue-600 accent-blue-600"
+             ${selected.has(p.id) ? 'checked' : ''} onchange="toggleAssign('${p.id}')">
+      <span class="text-sm text-slate-700">${p.name}</span>
+    </label>
+  `).join('');
+}
+
+function toggleAssign(id) {
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  renderApiPreview();
+}
+
+// ── Items ────────────────────────────────────────────────────────────────────
+function renderItems() {
+  const t = getActive();
+  document.getElementById('itemCount').textContent = `${t.items.length} items`;
+  document.getElementById('itemsList').innerHTML = t.items.map((item, idx) => `
+    <div class="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+      <span class="text-slate-300 text-xs select-none font-mono w-5 text-center">${idx + 1}</span>
+      <input type="text" value="${escHtml(item.label)}" placeholder="Item label…"
+             class="flex-1 text-sm text-slate-700 bg-transparent focus:outline-none min-w-0"
+             oninput="updateLabel('${item.id}', this.value)">
+      <select onchange="updateType('${item.id}', this.value)"
+              class="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 shrink-0">
+        ${Object.entries(ITEM_TYPES).map(([v,l]) => `<option value="${v}" ${item.type===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <button onclick="removeItem('${item.id}')" class="text-slate-300 hover:text-red-400 transition-colors shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+function addItem() {
+  getActive().items.push({ id: 'i' + Date.now(), label: '', type: 'pass_fail' });
+  renderItems();
+  renderApiPreview();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#itemsList input[type="text"]');
+    inputs[inputs.length - 1]?.focus();
+  }, 40);
+}
+
+function removeItem(id) {
+  const t = getActive();
+  t.items = t.items.filter(i => i.id !== id);
+  renderItems();
+  renderApiPreview();
+}
+
+function updateLabel(id, val) { getActive().items.find(i=>i.id===id).label = val; renderApiPreview(); }
+function updateType(id, val)  { getActive().items.find(i=>i.id===id).type  = val; renderApiPreview(); }
+
+// ── New / Delete / Save ──────────────────────────────────────────────────────
+function newChecklist() {
+  const t = { id:'cl-'+Date.now(), name:'New Checklist', assignTo:'driver', assigned:[], requirePhotos:true,
+               items:[{ id:'i'+Date.now(), label:'', type:'pass_fail' }] };
+  templates.unshift(t);
+  selectTemplate(t.id);
+  setTimeout(() => { document.getElementById('clName').select(); }, 50);
+}
+
+function deleteChecklist() {
+  if (templates.length <= 1) { toast('Cannot delete the only checklist'); return; }
+  templates = templates.filter(t => t.id !== activeId);
+  selectTemplate(templates[0].id);
+  toast('Checklist deleted');
+}
+
+function onNameInput() { renderApiPreview(); }
+
+function saveChecklist() {
+  const t = getActive();
+  t.name = document.getElementById('clName').value.trim() || 'Untitled';
+  t.assignTo = assignType;
+  t.assigned = [...selected];
+  t.requirePhotos = document.getElementById('reqPhotos').checked;
+  renderSidebar();
+  renderApiPreview();
+  toast('Saved — AddInData updated in demo_UK_smb_onboarding');
+  /*
+   * REAL MyGeotab Add-In call (use "Add" for new, "Set" for existing):
+   *
+   * api.call("Add", {
+   *   typeName: "AddInData",
+   *   entity: { addInId: ADDIN_ID, details: JSON.stringify({ type:"ChecklistTemplate", ...t }) }
+   * }, function(id) { t.addInDataId = id; }, console.error);
+   *
+   * For existing: api.call("Set", { typeName:"AddInData", entity:{ id: t.addInDataId, addInId:ADDIN_ID, details:JSON.stringify(t) } });
+   */
+}
+
+// ── API preview ──────────────────────────────────────────────────────────────
+function renderApiPreview() {
+  const t = getActive();
+  if (!t) return;
+  const name = document.getElementById('clName').value || t.name;
+  const selArr = JSON.stringify([...selected]);
+  document.getElementById('apiPreview').innerHTML =
+`<span class="c-cmt">// Save checklist template to MyGeotab AddInData</span>
+api.call(<span class="c-str">"Add"</span>, {
+  typeName: <span class="c-str">"AddInData"</span>,
+  entity: {
+    addInId: <span class="c-str">"${ADDIN_ID}"</span>,
+    details: JSON.stringify({
+      <span class="c-key">type</span>:         <span class="c-str">"ChecklistTemplate"</span>,
+      <span class="c-key">id</span>:           <span class="c-str">"${t.id}"</span>,
+      <span class="c-key">name</span>:         <span class="c-str">"${escHtml(name)}"</span>,
+      <span class="c-key">assignTo</span>:     <span class="c-str">"${assignType}"</span>,
+      <span class="c-key">assigned</span>:     ${escHtml(selArr)},   <span class="c-cmt">// driver or device keys</span>
+      <span class="c-key">requirePhotos</span>: ${document.getElementById('reqPhotos').checked},
+      <span class="c-key">items</span>: [      <span class="c-cmt">// ${t.items.length} items</span>
+${t.items.map(i => `        { id:<span class="c-str">"${i.id}"</span>, label:<span class="c-str">"${escHtml(i.label||'…')}"</span>, type:<span class="c-str">"${i.type}"</span> }`).join(',\n')}
+      ]
+    })
+  }
+}, function(newId) { console.log(<span class="c-str">"Saved:"</span>, newId); }, console.error);`;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('opacity-0','translate-y-4');
+  el.classList.add('opacity-100','translate-y-0');
+  setTimeout(() => { el.classList.add('opacity-0','translate-y-4'); el.classList.remove('opacity-100','translate-y-0'); }, 2800);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+renderSidebar();
+selectTemplate(activeId);
+</script>
+</body>
+</html>
