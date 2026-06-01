@@ -230,6 +230,11 @@ geotab.addin.vehicleChecklistBuilder = function() {
   return {
     initialize: function(api, state, callback) {
       _api = api;
+      console.log('[ChecklistBuilder] state:', JSON.stringify(state));
+      // Also try to find registered add-ins so we can confirm the addInId
+      api.call('Get', { typeName: 'AddIn', search: {} }, function(addins) {
+        console.log('[ChecklistBuilder] registered add-ins:', JSON.stringify(addins));
+      }, function(e) { console.log('[ChecklistBuilder] AddIn fetch error:', e); });
       if (state && state.database) {
         document.getElementById('dbBadge').textContent = state.database;
       }
