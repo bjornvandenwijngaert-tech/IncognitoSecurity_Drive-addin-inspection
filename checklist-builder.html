@@ -80,13 +80,19 @@
 
       <!-- Assignment targets -->
       <div class="bg-white border border-slate-200 rounded-xl p-4">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-2">
           <p id="assignLabel" class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Select Drivers</p>
-          <span id="dataSourceBadge" class="loading-pill hidden">
-            <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#94a3b8" stroke-width="3"/><path d="M12 2a10 10 0 0110 10" stroke="#0047BB" stroke-width="3" stroke-linecap="round"/></svg>
-            Loading from MyGeotab…
-          </span>
+          <div class="flex items-center gap-2">
+            <span id="dataSourceBadge" class="loading-pill hidden">
+              <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#94a3b8" stroke-width="3"/><path d="M12 2a10 10 0 0110 10" stroke="#0047BB" stroke-width="3" stroke-linecap="round"/></svg>
+              Loading…
+            </span>
+            <input id="assignSearch" type="text" placeholder="Search…"
+              class="text-xs border border-slate-200 rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-blue-400 bg-white"
+              oninput="onAssignSearch(this.value)">
+          </div>
         </div>
+        <div id="groupChips" class="flex flex-wrap gap-1 mb-2"></div>
         <div id="assignList" class="space-y-1 max-h-44 overflow-y-auto"></div>
       </div>
     </div>
@@ -206,12 +212,17 @@ const PRESET_CATEGORIES = [
 
 const TYPE_LABEL = { pass_fail:'Pass/Fail', yes_no:'Yes/No', number:'Number', text:'Text' };
 
-let DRIVERS  = [];
-let VEHICLES = [];
-let templates = [];
-let activeId  = null;
-let assignType = 'driver';
-let selected   = new Set();
+let DRIVERS       = [];
+let VEHICLES      = [];
+let GROUP_MAP     = {}; // id → name
+let DRIVER_GROUPS = []; // [{id, name}] groups present on at least one driver
+let VEHICLE_GROUPS= []; // [{id, name}] groups present on at least one vehicle
+let templates     = [];
+let activeId      = null;
+let assignType    = 'driver';
+let selected      = new Set();
+let searchQuery   = '';
+let activeGroups  = new Set();
 let selectedPresets = new Map();
 
 var _api = null;
@@ -280,8 +291,10 @@ function loadFromApi() {
     if (users && users.length) {
       DRIVERS = users.map(u => ({
         id: u.id,
-        name: ((u.firstName||'') + ' ' + (u.lastName||'')).trim() || u.name || u.id
-      })).sort((a,b) => a.name.localeCompare(b.name));
+        name: ((u.firstName||'') + ' ' + (u.lastName||'')).trim() || u.name || u.id,
+        groups: (u.groups || []).map(g => g.id)
+      })).sort((a, b) => a.name.localeCompare(b.name));
+      buildDriverGroups();
     }
     if (assignType === 'driver') renderAssignList();
   }, function() {});
@@ -291,11 +304,46 @@ function loadFromApi() {
     if (devices && devices.length) {
       VEHICLES = devices
         .filter(d => d.id && d.id !== 'b0')
-        .map(d => ({ id: d.id, name: d.name || d.id }))
-        .sort((a,b) => a.name.localeCompare(b.name));
+        .map(d => ({
+          id: d.id,
+          name: d.name || d.id,
+          licensePlate: (d.licensePlate || '').trim(),
+          groups: (d.groups || []).map(g => g.id)
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      buildVehicleGroups();
     }
     if (assignType === 'asset') renderAssignList();
   }, function() {});
+
+  // Load groups (for filter chips)
+  _api.call('Get', { typeName: 'Group', search: {} }, function(groups) {
+    if (groups && groups.length) {
+      groups.forEach(g => { GROUP_MAP[g.id] = g.name || g.id; });
+      buildDriverGroups();
+      buildVehicleGroups();
+      renderAssignList();
+    }
+  }, function() {});
+}
+
+// Build deduplicated group lists from loaded data
+function buildDriverGroups() {
+  const seen = new Set();
+  DRIVER_GROUPS = [];
+  DRIVERS.forEach(d => (d.groups || []).forEach(gId => {
+    if (!seen.has(gId) && GROUP_MAP[gId]) { seen.add(gId); DRIVER_GROUPS.push({ id: gId, name: GROUP_MAP[gId] }); }
+  }));
+  DRIVER_GROUPS.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildVehicleGroups() {
+  const seen = new Set();
+  VEHICLE_GROUPS = [];
+  VEHICLES.forEach(v => (v.groups || []).forEach(gId => {
+    if (!seen.has(gId) && GROUP_MAP[gId]) { seen.add(gId); VEHICLE_GROUPS.push({ id: gId, name: GROUP_MAP[gId] }); }
+  }));
+  VEHICLE_GROUPS.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getActive() { return templates.find(t => t.id === activeId); }
@@ -327,6 +375,10 @@ function selectTemplate(id) {
   document.getElementById('clName').value = t.name;
   assignType = t.assignTo;
   selected = new Set(t.assigned);
+  searchQuery = '';
+  activeGroups = new Set();
+  const searchEl = document.getElementById('assignSearch');
+  if (searchEl) searchEl.value = '';
   document.getElementById('reqPhotos').checked = t.requirePhotos;
   updateAssignButtons();
   renderAssignList();
@@ -339,9 +391,36 @@ function selectTemplate(id) {
 function setAssignType(type) {
   assignType = type;
   selected = new Set();
+  searchQuery = '';
+  activeGroups = new Set();
+  document.getElementById('assignSearch').value = '';
   updateAssignButtons();
   renderAssignList();
   renderApiPreview();
+}
+
+function onAssignSearch(val) {
+  searchQuery = val;
+  renderAssignList();
+}
+
+function toggleGroup(gId) {
+  activeGroups.has(gId) ? activeGroups.delete(gId) : activeGroups.add(gId);
+  renderGroupChips();
+  renderAssignList();
+}
+
+function renderGroupChips() {
+  const groups = assignType === 'driver' ? DRIVER_GROUPS : VEHICLE_GROUPS;
+  const el = document.getElementById('groupChips');
+  if (groups.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = groups.map(g => {
+    const on = activeGroups.has(g.id);
+    const s = on
+      ? 'border:1.5px solid #0047BB; border-radius:6px; padding:2px 8px; font-size:11px; background:#eff6ff; color:#1e40af; cursor:pointer;'
+      : 'border:1.5px solid #e2e8f0; border-radius:6px; padding:2px 8px; font-size:11px; background:white; color:#64748b; cursor:pointer;';
+    return `<button style="${s}" onclick="toggleGroup('${g.id}')">${escHtml(g.name)}</button>`;
+  }).join('');
 }
 
 function updateAssignButtons() {
@@ -364,14 +443,36 @@ function updateAssignButtons() {
 function renderAssignList() {
   const pool = assignType === 'driver' ? DRIVERS : VEHICLES;
   document.getElementById('assignLabel').textContent = assignType === 'driver' ? 'Select Drivers' : 'Select Vehicles';
-  document.getElementById('assignList').innerHTML = pool.length
-    ? pool.map(p => `
+
+  const q = searchQuery.trim().toLowerCase();
+
+  let visible = pool;
+  if (activeGroups.size > 0) {
+    visible = visible.filter(p => (p.groups || []).some(gId => activeGroups.has(gId)));
+  }
+  if (q) {
+    visible = visible.filter(p => {
+      const nameMatch = p.name.toLowerCase().includes(q);
+      const regMatch  = assignType === 'asset' && (p.licensePlate || '').toLowerCase().includes(q);
+      return nameMatch || regMatch;
+    });
+  }
+
+  document.getElementById('assignList').innerHTML = visible.length
+    ? visible.map(p => {
+        const regTag = (assignType === 'asset' && p.licensePlate)
+          ? ` <span style="font-size:11px; color:#94a3b8;">${escHtml(p.licensePlate)}</span>`
+          : '';
+        return `
         <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
           <input type="checkbox" value="${p.id}" class="w-4 h-4 rounded text-blue-600 accent-blue-600"
                  ${selected.has(p.id) ? 'checked' : ''} onchange="toggleAssign('${p.id}')">
-          <span class="text-sm text-slate-700">${p.name}</span>
-        </label>`).join('')
-    : '<p class="text-xs text-slate-400 px-2 py-1">None available</p>';
+          <span class="text-sm text-slate-700">${escHtml(p.name)}${regTag}</span>
+        </label>`;
+      }).join('')
+    : `<p class="text-xs text-slate-400 px-2 py-1">${pool.length ? 'No results' : 'None available'}</p>`;
+
+  renderGroupChips();
 }
 
 function toggleAssign(id) {
