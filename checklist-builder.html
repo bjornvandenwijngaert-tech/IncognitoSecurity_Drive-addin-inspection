@@ -31,7 +31,10 @@
   <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
   <span class="font-semibold text-base">Checklist Builder</span>
   <span id="dbBadge" class="text-blue-300 text-xs bg-blue-900/40 px-2 py-0.5 rounded ml-1">demo_UK_smb_onboarding</span>
+  <button onclick="testAddInData()" class="ml-auto text-xs bg-yellow-400 hover:bg-yellow-300 text-yellow-900 font-semibold px-3 py-1 rounded">Test AddInData</button>
 </header>
+
+<div id="testOutput" class="hidden bg-slate-900 text-green-300 font-mono text-xs p-4 overflow-y-auto max-h-64 whitespace-pre-wrap border-b border-slate-700"></div>
 
 <div class="flex flex-1 overflow-hidden min-h-0">
   <!-- Sidebar -->
@@ -165,7 +168,7 @@
 </div>
 
 <script>
-const ADDIN_ID = 'aVehicleCheckIn000000001';
+const ADDIN_ID = 'a1Z2QF2s8nkajnj2rcMUsPQ';
 
 // ── Preset item library ───────────────────────────────────────────────────────
 const PRESET_CATEGORIES = [
@@ -230,16 +233,11 @@ geotab.addin.vehicleChecklistBuilder = function() {
   return {
     initialize: function(api, state, callback) {
       _api = api;
-      console.log('[ChecklistBuilder] state:', JSON.stringify(state));
-      // Also try to find registered add-ins so we can confirm the addInId
-      api.call('Get', { typeName: 'AddIn', search: {} }, function(addins) {
-        console.log('[ChecklistBuilder] registered add-ins:', JSON.stringify(addins));
-      }, function(e) { console.log('[ChecklistBuilder] AddIn fetch error:', e); });
       if (state && state.database) {
         document.getElementById('dbBadge').textContent = state.database;
       }
-      loadFromApi();
       callback();
+      loadFromApi();
     },
     focus: function(api, state) {
       _api = api;
@@ -667,6 +665,49 @@ function toast(msg) {
   el.classList.remove('opacity-0','translate-y-4');
   el.classList.add('opacity-100','translate-y-0');
   setTimeout(() => { el.classList.add('opacity-0','translate-y-4'); el.classList.remove('opacity-100','translate-y-0'); }, 2800);
+}
+
+// ── AddInData smoke test ──────────────────────────────────────────────────────
+function testLog(msg) {
+  var el = document.getElementById('testOutput');
+  el.classList.remove('hidden');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function testAddInData() {
+  if (!_api) { testLog('ERROR: _api not ready'); return; }
+  var el = document.getElementById('testOutput');
+  el.textContent = '';
+  el.classList.remove('hidden');
+  testLog('--- Registered AddIns in this database ---');
+  _api.call('Get', { typeName: 'AddIn', search: {} }, function(addins) {
+    addins.forEach(function(a) {
+      var name = (a.configuration && a.configuration.name) || '—';
+      testLog('id: ' + a.id + '  name: ' + name);
+    });
+    testLog('--- Total: ' + addins.length + ' add-in(s) ---');
+    testLog('');
+    testLog('--- Now testing AddInData GET with current ADDIN_ID ---');
+    testLog('addInId: ' + ADDIN_ID);
+    _api.call('Get', {
+      typeName: 'AddInData',
+      search: { addInId: ADDIN_ID }
+    }, function(results) {
+      testLog('GET OK — ' + results.length + ' record(s)');
+      _api.call('Add', {
+        typeName: 'AddInData',
+        entity: { addInId: ADDIN_ID, details: { test: true, ts: new Date().toISOString() } }
+      }, function(newId) {
+        testLog('ADD OK — new id: ' + newId);
+      }, function(err) {
+        testLog('ADD FAILED: ' + JSON.stringify(err, null, 2));
+      });
+    }, function(err) {
+      testLog('GET FAILED: ' + err.message);
+    });
+  }, function(err) {
+    testLog('Could not fetch AddIns: ' + err.message);
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

@@ -125,7 +125,7 @@
 </div>
 
 <script>
-const ADDIN_ID = 'aVehicleCheckIn000000001';
+const ADDIN_ID = 'a1Z2QF2s8nkajnj2rcMUsPQ';
 let _api  = null;
 let _state = null;
 
@@ -144,7 +144,8 @@ geotab.addin.vehicleCheckIn = function() {
     initialize: function(api, state, callback) {
       _api   = api;
       _state = state;
-      loadDriveData(callback);
+      callback();
+      loadDriveData();
     },
     focus: function(api, state) { _api = api; _state = state; },
     blur: function() {}
@@ -354,8 +355,10 @@ function handlePhotos(input) {
   Array.from(input.files).forEach(function(file) {
     var reader = new FileReader();
     reader.onload = function(e) {
-      photos.push(e.target.result);
-      renderPhotoGrid();
+      compressImage(e.target.result, 1400, 0.90, function(compressed) {
+        photos.push(compressed);
+        renderPhotoGrid();
+      });
     };
     reader.readAsDataURL(file);
   });
@@ -385,10 +388,12 @@ function handleItemPhoto(id, input) {
   Array.from(input.files).forEach(function(file) {
     var reader = new FileReader();
     reader.onload = function(e) {
-      responses[id].itemPhotos.push(e.target.result);
-      var count = responses[id].itemPhotos.length;
-      var el = document.getElementById('item-photo-count-' + id);
-      if (el) el.textContent = count + ' photo' + (count > 1 ? 's' : '') + ' added';
+      compressImage(e.target.result, 1400, 0.90, function(compressed) {
+        responses[id].itemPhotos.push(compressed);
+        var count = responses[id].itemPhotos.length;
+        var el = document.getElementById('item-photo-count-' + id);
+        if (el) el.textContent = count + ' photo' + (count > 1 ? 's' : '') + ' added';
+      });
     };
     reader.readAsDataURL(file);
   });
@@ -456,6 +461,20 @@ function submitChecklist() {
   }
 
   showScreen('success');
+}
+
+// ── Image compression ─────────────────────────────────────────────────────────
+function compressImage(dataUrl, maxWidth, quality, callback) {
+  var img = new Image();
+  img.onload = function() {
+    var w = img.width, h = img.height;
+    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
