@@ -37,7 +37,7 @@
     <svg style="width:18px;height:18px;" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
   </div>
   <span style="font-size:15px;font-weight:700;color:#1e293b;">Checklist Builder</span>
-  <span style="font-size:10px;color:#cbd5e1;">v1.7</span>
+  <span style="font-size:10px;color:#cbd5e1;">v1.8</span>
   <button id="driveBtn" onclick="openDriveSetup()" style="margin-left:auto;display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:7px 14px;cursor:pointer;color:#64748b;font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
     <span id="driveBtnLabel">Connect Storage</span>
@@ -77,7 +77,7 @@
         <label for="driveHint" class="block text-xs font-semibold text-slate-500 uppercase tracking-widest">Which Google account?</label>
         <input id="driveHint" type="email" autocomplete="off" spellcheck="false" placeholder="storage@yourcompany.com"
                class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm text-slate-700 focus:outline-none focus:border-blue-500">
-        <p class="text-[11px] text-slate-400 leading-snug">Enter the customer Drive email. Google will still show an account chooser; select “Use another account” if it shows your own login. A different account will be rejected.</p>
+        <p class="text-[11px] text-slate-400 leading-snug">Fill this in to choose the Drive that photos are stored in. Leave it blank and Google will use whichever account this browser is already signed in to, which is usually your MyGeotab login.</p>
       </div>
       <button onclick="startGoogleAuth('driveHint')" class="w-full py-3 rounded-xl font-semibold text-sm bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2">
         <svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
@@ -1429,27 +1429,50 @@ function renderApiPreview() {}
 
 // ── Google Drive Integration ──────────────────────────────────────────────────
 const GD_CLIENT_ID     = '894696681107-jnorf9bpqtveq4tjoh2lfrj0bu04lej3.apps.googleusercontent.com';
-const GD_CLIENT_SECRET = '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';
+// This page is public, so the client secret cannot live in it. The broker holds the
+// secret and only answers callers who prove they are signed into this database.
+// Source and deploy notes: ../../token-broker/
+const GD_TOKEN_BROKER  = 'https://script.google.com/macros/s/AKfycbxynagRXcZoTCbormYqcw88dFlZRg40rve4PGaw_BGpHFCBdB_Hvq5VeQMAZJ5K4t10/exec';
 const GD_SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const GD_CONFIG_TYPE = 'GoogleDriveConfig';
 let GD_CONFIG = null; // { accessToken, refreshToken, email, expiresAt }
-const GD_HINT_KEY = 'vehicle_checkin_drive_email_hint';
 
-function loadDriveEmailHint() {
-  try { return localStorage.getItem(GD_HINT_KEY) || ''; } catch (e) { return ''; }
+// The broker will not mint a token without proof the caller is signed into this
+// database, so every call carries the MyGeotab session. Cached because getSession
+// is asynchronous and the session does not change while the page is open.
+var _gdSession = null;
+
+function gdWithSession(onReady, onError) {
+  if (_gdSession) { onReady(_gdSession); return; }
+  if (!_api || !_api.getSession) { onError('Not connected to MyGeotab'); return; }
+  _api.getSession(function(session, server) {
+    if (!session || !session.sessionId) { onError('No MyGeotab session'); return; }
+    _gdSession = {
+      // Same shape the launch page already uses to hand a session to the driver
+      // page: getSession reports the server as `path`, and says 'ThisServer' when
+      // the database lives on the one being talked to.
+      server:    (session.path && session.path !== 'ThisServer') ? session.path
+                 : (server || location.hostname),
+      database:  session.database,
+      userName:  session.userName,
+      sessionId: session.sessionId
+    };
+    onReady(_gdSession);
+  });
 }
 
-function paintDriveEmailHint() {
-  const hint = loadDriveEmailHint() || (GD_CONFIG && GD_CONFIG.email) || '';
-  ['driveHint', 'driveHintSwitch'].forEach(function(id) {
-    const field = document.getElementById(id);
-    if (field && !field.value) field.value = hint;
-  });
+// Deliberately text/plain: that keeps this a CORS-simple request. Apps Script does
+// not answer preflight, so an application/json content type never reaches the broker.
+function gdBrokerFetch(body) {
+  return fetch(GD_TOKEN_BROKER, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  }).then(function(r) { return r.json(); });
 }
 
 function openDriveSetup() {
   document.getElementById('driveModal').classList.remove('hidden');
-  paintDriveEmailHint();
   if (GD_CONFIG && GD_CONFIG.refreshToken) {
     showDriveConnected();
   } else {
@@ -1472,7 +1495,6 @@ function showDriveConnected() {
 function showDriveDisconnected() {
   document.getElementById('driveStateConnected').classList.add('hidden');
   document.getElementById('driveStateDisconnected').classList.remove('hidden');
-  paintDriveEmailHint();
   document.getElementById('driveBtnLabel').textContent = 'Connect Storage';
   document.getElementById('driveBtn').style.background = 'rgba(255,255,255,0.15)';
 }
@@ -1489,9 +1511,6 @@ async function startGoogleAuth(hintFieldId) {
     return;
   }
   _gdWantedEmail = hint || null;
-  try {
-    if (_gdWantedEmail) localStorage.setItem(GD_HINT_KEY, _gdWantedEmail);
-  } catch (e) {}
 
   // Generate PKCE code_verifier (128 random bytes → base64url)
   const array = new Uint8Array(96);
@@ -1514,12 +1533,13 @@ async function startGoogleAuth(hintFieldId) {
     + '&response_type=code'
     + '&scope='                 + encodeURIComponent(scope)
     + '&access_type=offline'
-    // Always force account selection. MyGeotab is commonly signed in with the
-    // operator's own GSuite account, and consent alone lets Google silently reuse
-    // that account even when a customer address was entered above. The hint
-    // preselects the requested account where Google knows it; the chooser remains
-    // available when the customer account is not already signed in.
-    // Consent is also required so reconnecting returns a refresh token.
+    // Google only shows the account chooser when more than one account is signed
+    // in. MyGeotab is logged into with Google, so there is normally exactly one,
+    // and Google silently picks it however loudly select_account asks otherwise.
+    // Naming the account instead is deterministic: login_hint tells Google which
+    // one to use, and it prompts for that account if it is not already signed in.
+    // consent is always sent because it is what guarantees a refresh token comes
+    // back on a reconnect, and without one the Drive link dies at the next expiry.
     + '&prompt=' + encodeURIComponent('consent select_account')
     + (_gdWantedEmail ? '&login_hint=' + encodeURIComponent(_gdWantedEmail) : '')
     + '&code_challenge='        + encodeURIComponent(challenge)
@@ -1595,21 +1615,25 @@ function exchangeAuthCode(code) {
 
   toast('Code received — exchanging with Google…');
 
-  const redirectUri = 'https://bjornvandenwijngaert-tech.github.io/IncognitoSecurity_Drive-addin-inspection/oauth-callback.html';
+  gdWithSession(
+    function(session) { exchangeAuthCodeWithSession(code, verifier, session); },
+    function(err) {
+      const msg = 'Connection failed: ' + err;
+      toast(msg);
+      showAuthError(msg);
+    }
+  );
+}
 
-  fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code:          code,
-      client_id:     GD_CLIENT_ID,
-      client_secret: GD_CLIENT_SECRET,
-      code_verifier: verifier,
-      redirect_uri:  redirectUri,
-      grant_type:    'authorization_code'
-    })
+function exchangeAuthCodeWithSession(code, verifier, session) {
+  // The redirect_uri is not sent: the broker holds its own copy and uses that, so a
+  // caller cannot talk it into completing a flow that came back somewhere else.
+  gdBrokerFetch({
+    action:       'exchange',
+    session:      session,
+    code:         code,
+    codeVerifier: verifier
   })
-  .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.error) {
       const msg = 'Google auth failed: ' + (data.error_description || data.error);
@@ -1640,13 +1664,9 @@ function exchangeAuthCode(code) {
       // Google can hand back an account other than the one that was asked for, so
       // say so rather than quietly pointing every future photo at the wrong Drive.
       const wanted = _gdWantedEmail;
-      if (wanted && (!user.email || user.email.toLowerCase() !== wanted.toLowerCase())) {
-        const actual = user.email || 'a different Google account';
-        const msg = 'Google connected ' + actual + ', not ' + wanted
-                  + '. Choose “Use another account” in Google and try again.';
-        toast('Wrong Google account selected');
-        showAuthError(msg);
-        return;
+      if (wanted && user.email && user.email.toLowerCase() !== wanted.toLowerCase()) {
+        showAuthError('Google connected ' + user.email + ', not ' + wanted
+                    + '. Disconnect and try again if that is wrong.');
       }
       const config = {
         type:         GD_CONFIG_TYPE,
